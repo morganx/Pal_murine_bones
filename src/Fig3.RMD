@@ -1,0 +1,240 @@
+---
+title: "Pacifici.RMD"
+output: html_document
+date: "2024-02-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(vegan)
+library(ggordiplots)
+library(cowplot)
+theme_set(
+    theme_classic(base_size = 14)
+)
+```
+
+Load  metadata
+```{r}
+meta<-read.csv("../data/first_batch/metadata.csv")
+
+```
+
+Make Figure 3
+```{r}
+
+# First - do male vs female mice at baseline
+met<- meta %>% filter(Time ==1)
+strains<-read.csv("../data/first_batch/Figure3/Male_vs_female_baseline_STRAINS.csv")
+metacyc<-read.csv("../data/first_batch/Figure3/Fem_vs_male_baseline_MetCyc.csv")
+
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:29, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:21]
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+metacyc<-metacyc[2:21]
+colnames(metacyc)<-gsub("_.*", "", colnames(metacyc))
+colnames(metacyc)<-gsub("X", "",  colnames(metacyc))
+
+# Make sure column order matches metadata 
+column_order <- met$mouseID
+metacyc <- metacyc[, order(match(colnames(metacyc), column_order))]
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+identical(colnames(metacyc), as.character(met$mouseID))
+
+# Species Alpha Baseline
+met$Shannon<-diversity(t(bugs), index="shannon")
+my_comparisons <- list( c("Male", "Female"))
+
+PanelA<-met %>% ggplot(aes(y=Shannon, x=Sex, colour=Sex)) + geom_boxplot() +  scale_colour_manual(values=c("tan2", "black"))+  geom_point() + stat_compare_means(comparisons = my_comparisons, label = "p.signif") + scale_y_continuous(limits=c(2.25, 3)) + ylab("Shannon") +  ggtitle("Species")
+
+# Species Beta Baseline
+d1<-vegdist(t(bugs), method="bray")
+ord2<- capscale(d1 ~ 1)
+adonis2(formula = d1 ~ met$Sex)
+p<-ggordiplots::gg_ordiplot(ord2, groups=met$Sex)
+PanelB<-p$plot + annotate(geom="text", x=0.25, y=-0.4, label="p < 0.001") + scale_colour_manual(values=c("tan2", "black")) +   ggtitle("Species")
+
+# Pathway Alpha Baseline
+met$pwy_Shannon<-diversity(t(metacyc), index="shannon")
+PanelC<-met %>% ggplot(aes(y=pwy_Shannon, x=Sex, colour=Sex)) + geom_boxplot() +  scale_colour_manual(values=c("tan2", "black"))+  geom_point() + stat_compare_means(comparisons = my_comparisons, label = "p.signif") + ylab("Shannon") +  ggtitle("Metacyc Pathways")
+
+# Pathway Beta Baseline
+d1<-vegdist(t(metacyc), method="bray")
+ord2<- capscale(d1 ~ 1)
+adonis2(formula = d1 ~ met$Sex)
+p<-ggordiplots::gg_ordiplot(ord2, groups=met$Sex)
+PanelD<-p$plot + annotate(geom="text", x=0.6, y=-0.35, label="p > 0.05") + scale_colour_manual(values=c("tan2", "black")) +  ggtitle("Metacyc Pathways")
+
+# Second chunk: do males after 4 weeks GAHT
+met<- meta %>% filter(Time ==4) %>% filter(Sex == "Male")
+met$Group<-ifelse(met$trt == "Estrogen", "Orx.E2", ifelse(met$orch =="Yes", "Orx.Veh", "Sham.Veh"))
+ met$Group = factor(met$Group, levels = c("Sham.Veh", "Orx.Veh", "Orx.E2"))
+# Update dropbox link
+strains<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks males only.csv")
+metacyc<-read.csv("../data/first_batch/Figure3/MetaCyc males 4 wks.csv")
+
+metacyc<-metacyc[2:30]
+colnames(metacyc)<-gsub("_.*", "", colnames(metacyc))
+colnames(metacyc)<-gsub("X", "",  colnames(metacyc))
+
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:37, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:30]
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# fix order of cols
+column_order <- met$mouseID
+metacyc <- metacyc[, order(match(colnames(metacyc), column_order))]
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+identical(colnames(metacyc), as.character(met$mouseID))
+
+# Alpha diversity - males after 4 weeks GAHT
+met$Shannon<-diversity(t(bugs), index="shannon")
+my_comparisons <- list( c("Sham.Veh", "Orx.Veh"), c("Orx.Veh", "Orx.E2"), c("Orx.E2", "Sham.Veh") )
+PanelE<-ggplot(met, aes(y=Shannon, x=Group, colour=Group)) + geom_boxplot() +  scale_colour_manual(values=c("forestgreen", "red", "blue")) +  geom_point() + stat_compare_means(comparisons = my_comparisons, label = "p.signif") + scale_y_continuous(limits=c(2, 3.25)) + ggtitle("Species")
+
+# Beta Male 4 wk
+d1<-vegdist(t(bugs), method="bray")
+ord2<- capscale(d1 ~ 1)
+adonis2(formula = d1 ~ met$Group)
+p<-ggordiplots::gg_ordiplot(ord2, groups=met$Group)
+PanelF<-p$plot + annotate(geom="text", x=0.4, y=-0.4, label="p < 0.001") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + ggtitle("Species")
+
+
+# Pathway Alpha 4 week male GAHT
+met$pShannon<-diversity(t(metacyc), index="shannon")
+PanelG<-ggplot(met, aes(y=pShannon, x=Group, colour=Group)) + geom_boxplot() +  scale_colour_manual(values=c("forestgreen", "red", "blue")) +  geom_point() + stat_compare_means(comparisons = my_comparisons, label = "p.signif") + ggtitle("Metacyc Pathways") + ylab("Shannon")
+
+# Check significance for panel G
+met %>% rstatix::wilcox_test(pShannon ~ Group)
+
+# Pathway Beta 4 week male GAHT
+d1<-vegdist(t(metacyc), method="bray")
+ord2<- capscale(d1 ~ 1)
+adonis2(formula = d1 ~ met$Group)
+pairwiseAdonis::pairwise.adonis2(d1 ~ Group, data=met)
+p<-ggordiplots::gg_ordiplot(ord2, groups=met$Group)
+PanelH<-p$plot + annotate(geom="text", x=0.1, y=-0.5, label="p < 0.001") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + ggtitle("Metacyc Pathways")
+
+
+# Last chunk: female mice after 4 weeks GAHT
+strains<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks Females only.csv")
+metacyc<-read.csv("../data/first_batch/Figure3/Fem4wksMetCyc .csv")
+met<- meta %>% filter(Time ==4) %>% filter(Sex == "Female")
+met$Group<-ifelse(met$trt == "Test", "T", "Veh")
+met$Group = factor(met$Group, levels = c("Veh", "T"))
+
+ strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:28, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:21]
+
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+metacyc<-metacyc[2:21]
+colnames(metacyc)<-gsub("_.*", "", colnames(metacyc))
+colnames(metacyc)<-gsub("X", "",  colnames(metacyc))
+
+# fix order of cols
+column_order <- met$mouseID
+metacyc <- metacyc[, order(match(colnames(metacyc), column_order))]
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+
+# Check order
+identical(as.character(met$mouseID), colnames(bugs))
+identical(as.character(met$mouseID), colnames(metacyc))
+
+# Calculate alpha diversities for bug & pwy
+met$Shannon<-diversity(t(bugs), index="shannon")
+met$pShannon<-diversity(t(metacyc), index="shannon")
+
+# Veh vs T female mice
+my_comparisons <- list( c("Veh", "T"))
+
+# Bug Alpha Fem 4 wk
+PanelI<- ggplot(met, aes(y=Shannon, x=Group, colour=Group)) + geom_boxplot() +  scale_colour_manual(values=c("darkorange", "deeppink"))+  geom_point() + stat_compare_means(comparisons = my_comparisons, label = "p.signif") + scale_y_continuous(limits=c(2.2, 3)) + ggtitle("Species")
+
+# Bug Beta Fem 4 week
+d1<-vegdist(t(bugs), method="bray")
+ord2<- capscale(d1 ~ 1)
+adonis2(formula = d1 ~ met$Group)
+p<-ggordiplots::gg_ordiplot(ord2, groups=met$Group)
+PanelJ<-p$plot + annotate(geom="text", x=0.25, y=-0.4, label="p < 0.01") +  scale_colour_manual(values=c("darkorange", "deeppink")) + ggtitle("Species")
+
+# PW alpha fem 4 week
+PanelK<-ggplot(met, aes(y=pShannon, x=Group, colour=Group)) + geom_boxplot() +  scale_colour_manual(values=c("darkorange", "deeppink")) +  geom_point() + stat_compare_means(comparisons = my_comparisons, label = "p.signif") + ggtitle("Metacyc Pathways") + ylab("Shannon") + scale_y_continuous(limits=c(1.5, 4.6)) 
+
+# Check significance for panelK
+met %>% rstatix::wilcox_test(pShannon ~ Group)
+
+# PW beta fem 4 week
+d1<-vegdist(t(metacyc), method="bray")
+ord2<- capscale(d1 ~ 1)
+adonis2(formula = d1 ~ met$Group)
+p<-ggordiplots::gg_ordiplot(ord2, groups=met$Group)
+PanelL<-p$plot + annotate(geom="text", x=0.1, y=-0.5, label="p < 0.05") +  scale_colour_manual(values=c("darkorange", "deeppink")) + ggtitle("Metacyc Pathways")
+
+# Assemble all panels into a grid. First make columns
+t<-plot_grid(PanelA + theme(legend.position="none"), PanelE + theme(legend.position="none"), PanelI + theme(legend.position="none"), align='vh', labels=c("A", "E", "I"), hjust = -1, nrow = 3)
+
+u<-plot_grid(PanelB + theme(legend.position="none"), PanelF + theme(legend.position="none"), PanelJ + theme(legend.position="none"), align='vh', labels=c("B", "F", "J"), hjust = -1, nrow=3)
+
+v<-plot_grid(PanelC + theme(legend.position="none"), PanelG + theme(legend.position="none"), PanelK + theme(legend.position="none"), align='vh', labels=c("C", "G", "K"), hjust = -1, nrow = 3)
+
+w<-plot_grid(PanelD + theme(legend.position="none"), PanelH + theme(legend.position="none"), PanelL + theme(legend.position="none"), align='vh', labels=c("D", "H", "L"), hjust = -1, nrow = 3)
+
+# Combine columns
+plotThree<-(t | u | v | w) + plot_layout(widths = c(1.5, 2, 1.5, 2))
+
+# Add legends
+legend1 <- get_legend(
+  PanelB + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+legend2 <- get_legend(
+  PanelF + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+legend3 <- get_legend(
+  PanelJ + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+legend<-plot_grid(legend1, legend2, legend3, nrow=1)
+
+# Assemble final plot
+final<-plot_grid(legend, plotThree, nrow = 2, rel_heights = c(.1, 1))
+
+ggsave("../results/FigureThree.pdf", height=8, width=12)
+
+
+```
