@@ -13,8 +13,6 @@ library(vegan)
 library(ggordiplots)
 library(cowplot)
 library(patchwork)
-sessionInfo()
-
 ```
 
 Load  metadata
@@ -236,5 +234,8 @@ final<-plot_grid(legend, plotThree, nrow = 2, rel_heights = c(.1, 1))
 
 ggsave("../results/FigureThree.pdf", height=10, width=16)
 
+```
 
+```{r}
+sessionInfo()
 ```
