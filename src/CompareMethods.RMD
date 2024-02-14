@@ -1,0 +1,143 @@
+---
+title: "MP_Cosmos_Compare"
+output: html_document
+date: "2024-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(ggpubr)
+```
+
+Import cosmos
+```{r}
+
+meta<-read.csv("../data/first_batch/metadata.csv")
+
+mice1<-read.csv("../data/first_batch/Figure3/Male_vs_female_baseline_STRAINS.csv")
+mice2<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks males only.csv")
+mice3<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks Females only.csv")
+
+tax1<-mice1[1:8]
+tax2<-mice2[1:8]
+tax3<-mice3[1:8]
+
+# We have successfully collected all taxonomy and only need 129 complete cases
+tax<-left_join(tax1, tax2, by="Name")
+tax<-left_join(tax, tax3, by="Name")
+tax<-tax[1:8]
+colnames(tax) = gsub(".x", "", colnames(tax))
+
+
+mice1<-mice1[9:29]
+mice2<-mice2[9:38]
+mice3<-mice3[9:29]
+
+joined<-left_join(mice1, mice2)
+joined<-left_join(joined, mice3)
+Strain = joined$Strain
+
+# Clean up column names and IDs so they match
+colnames(joined) <-gsub("^X", "", colnames(joined))
+colnames(joined) <-gsub("\\.", "-", colnames(joined))
+
+# Put columns in order
+ordered_columns <- meta$Name
+joined<-joined[,ordered_columns]
+identical(colnames(joined), meta$Name)
+joined$Strain = Strain
+joined<-left_join(joined, tax, by=c("Strain" ="Name" ))
+```
+
+Load metaphlan profiles
+```{r}
+metaphlan<-read_tsv("../data/first_batch/metaphlan/metaphlan_taxonomic_profiles.tsv")
+colnames(metaphlan) <-gsub("_taxonomic_profile", "", colnames(metaphlan))
+colnames(metaphlan) <-gsub("_L001", "", colnames(metaphlan))
+colnames(metaphlan) <-gsub("_L007", "", colnames(metaphlan))
+colnames(metaphlan)[1] = "Taxonomy"
+metaphlan_species<-metaphlan %>% filter(grepl("s__", Taxonomy)) %>% filter(!(grepl("t__", Taxonomy)))
+
+df<-data.frame(taxonomy=metaphlan_species$Taxonomy)
+
+# Splitting the taxonomy column based on "|"
+split_tax <- str_split(df$taxonomy, "\\|")
+
+# Creating a new data frame with columns for each taxonomy level
+mp_tax <- data.frame(matrix(unlist(split_tax), nrow = nrow(df), byrow = TRUE))
+colnames(mp_tax) <- c("m_Kingdom", "m_Phylum", "m_Class", "m_Order", "m_Family", "m_Genus", "m_Species")
+mp_tax <- apply(mp_tax, c(1, 2), function(x) gsub("^(k__|p__|c__|o__|f__|g__|s__)", "", x))
+mp_tax<-cbind(mp_tax, df$taxonomy)
+colnames(mp_tax)[8] = "Taxonomy"
+mp_tax<-data.frame(mp_tax)
+
+
+ordered_columns <- meta$Name
+metaphlan_species<-metaphlan_species[, ordered_columns]
+identical(colnames(metaphlan_species), meta$Name)
+metaphlan_species$Taxonomy = df$taxonomy
+metaphlan_species<-left_join(metaphlan_species, mp_tax)
+```
+
+Compare Cosmos and Metaphlan taxonomy
+```{r}
+# Columns of samples in same order, just different attached taxonomy
+identical(colnames(joined[1:69]), colnames(metaphlan_species[1:69]))
+
+mmelt<-reshape2::melt(metaphlan_species)
+colnames(mmelt)[9] = "SampleID"
+
+cspecies <- joined %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 1:69, .fns = sum, na.rm = TRUE))
+
+cspecies<-left_join(cspecies, tax)
+
+cmelt<-reshape2::melt(cspecies)
+colnames(cmelt)[9] = "SampleID"
+
+# Fix simple case matching to improve assignment
+cmelt$Species = gsub(" ", "_", cmelt$Species)
+cmelt$Species = gsub("_u_s", "_sp", cmelt$Species)
+cmelt$Species = gsub("\\.", "", cmelt$Species)
+cmelt$Species = gsub("-", "_", cmelt$Species)
+
+
+mmelt$m_Species<-gsub("Candidatus_Arthromitus_sp_SFB_mouse", "Candidatus_Arthromitus_sp", mmelt$m_Species)
+mmelt$m_Species<-gsub("Dorea_sp_5_2", "Dorea_sp", mmelt$m_Species)
+mmelt$m_Species<-gsub("Enterorhabdus_sp_P55", "Enterorhabdus_sp", mmelt$m_Species)
+mmelt$m_Species<-gsub("Fibrobacter_sp_UWB16", "Fibrobacter_sp", mmelt$m_Species)
+mmelt$m_Species<-gsub("Fibrobacter_sp_UWB16", "Fibrobacter_sp", mmelt$m_Species)
+mmelt$m_Species<-gsub("GGB27184_SGB39404", "Methanobrevibacter_smithii", mmelt$m_Species)
+mmelt$m_Species<-gsub("Sarcina_sp_DSM_11001", "Sarcina_sp", mmelt$m_Species)
+mmelt$m_Species<-gsub("Treponema_SGB36322", "Treponema_sp", mmelt$m_Species)
+
+both<-left_join(cmelt, mmelt, by=c("Species" = "m_Species", "SampleID" = "SampleID"))
+
+# 41 of 90 Cosmos species can map
+intersect(mmelt$m_Species, cmelt$Species)
+
+both$m_Phylum<-ifelse(both$m_Phylum %in% c("Firmicutes", "Actinobacteria", "Verrucomicrobia", "Bacteroidetes", "Proteobacteria",  "Fibrobacteres", "Euryarchaeota", "Deferribacteres", "Spirochaetes"), both$m_Phylum, "Other")
+
+
+species_occurrences <- both %>%
+  group_by(Species) %>%
+  summarise(
+    greater_than_zero_x = sum(value.x > 0),
+    greater_than_zero_y = sum(value.y > 0), 
+    total_prevalence = sum(value.x > 0 | value.y > 0) / n()
+  )
+
+# Filter out species where the occurrence is less than 30%
+filtered_species <- species_occurrences %>%
+  filter(greater_than_zero_x > 10) %>% filter(greater_than_zero_y > 10)
+
+both %>% filter(!(Genus == "Unknown")) %>% filter(Species %in% filtered_species$Species)  %>% group_by(Species) %>% ggplot(aes(x=value.x, y=value.y, colour=Phylum)) + geom_point() + facet_wrap(~Species) + scale_x_log10() + scale_y_log10() + xlab("Cosmos") + ylab("Metaphlan") + stat_cor(method="spearman", label.y.npc="top", label.x.npc = "left", size=2.5)
+
+ggsave("../results/CosmosMetaphlanSpeciesComparison.pdf", width=16, height=16)
+sessionInfo()
+```
