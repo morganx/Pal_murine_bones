@@ -1,0 +1,7 @@
+"","raw.pvalue","adj.pvalue","mean.freq","direction.Fem.BV.TV","otu.name","Taxonomy","Kingdom","Phylum","Class","Order","Family","Genus","Species","Strain"
+"1",0.000105,0.00537,0.00112,"-","46","Lachnospiraceae bacterium 28-4","Bacteria","Firmicutes","Clostridia","Clostridiales","Lachnospiraceae","Lachnospiraceae_u_g","Lachnospiraceae_u_s","Lachnospiraceae bacterium 28-4"
+"2",0.000211,0.00537,0.00434,"-","59","Lactobacillus reuteri TD1","Bacteria","Firmicutes","Bacilli","Lactobacillales","Lactobacillaceae","Limosilactobacillus","Limosilactobacillus reuteri","Lactobacillus reuteri TD1"
+"3",0.000842,0.0128,0.00122,"-","12","Bacteroides acidifaciens JCM 10556","Bacteria","Bacteroidetes","Bacteroidia","Bacteroidales","Bacteroidaceae","Bacteroides","Bacteroides acidifaciens","Bacteroides acidifaciens JCM 10556"
+"4",0.001,0.0128,0.00367,"-","11","Bacteroides_u_t","Bacteria","Bacteroidetes","Bacteroidia","Bacteroidales","Bacteroidaceae","Bacteroides","Bacteroides_u_s","Bacteroides_u_t"
+"5",0.00253,0.0219,0.00135,"-","13","Bacteroides caecimuri","Bacteria","Bacteroidetes","Bacteroidia","Bacteroidales","Bacteroidaceae","Bacteroides","Bacteroides caecimuri","Bacteroides caecimuri"
+"6",0.00258,0.0219,2.38e-05,"-","39","Enterorhabdus sp. NM05_H27","Bacteria","Actinobacteria","Coriobacteriia","Eggerthellales","Eggerthellaceae","Enterorhabdus","Enterorhabdus_u_s","Enterorhabdus sp. NM05_H27"
