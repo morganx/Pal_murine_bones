@@ -1,0 +1,371 @@
+---
+title: "SupFig_246"
+output: html_document
+date: "2024-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(LDM)
+library(vegan)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+sessionInfo()
+```
+
+Load metadata
+```{r}
+meta<-read.csv("../data/first_batch/metadata.csv")
+```
+
+Generate underlying LDM for SF2 / M v F baseline
+```{r}
+# Select proper samples and add group name
+met<- meta %>% filter(Time == "1")
+strains<-read.csv("../data/first_batch/Figure3/Male_vs_female_baseline_STRAINS.csv")
+
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:29, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:21]
+tax<-strains2$Species
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# Make sure column order matches metadata 
+column_order <- met$mouseID
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+
+# Strip NA before LDM
+bugs[is.na(bugs)] <- 0
+
+fit1<-ldm(formula=bugs ~ Sex, data=met, dist.method = "bray", seed=12345)
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+
+#Make summary table for SEX
+w1 = match(fit1$detected.otu.omni[[1]], names(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[o],3),
+                       mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta>0, "+", "-"))[o],
+                       otu.name=names(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste("direction.", rownames(fit1$beta), sep="")
+
+# fix taxonomy
+tax_index<-data.frame(tax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Species"
+summary.tab2<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
+
+write.csv(summary.tab2, "../results/Sex-Time1-associated-ldm.csv")
+```
+
+Generate SupFig 2 from LDM outputs while we still have proper strains2 and metadata file
+```{r}
+# Load LDM results for sex
+data<-read.csv("../results/Sex-Time1-associated-ldm.csv")
+data <- arrange(data, desc(mean.freq))
+data$p.adj<-ifelse(data$adj.pvalue < 0.01, "<0.01", ifelse(data$adj.pvalue < 0.05, "<0.05", "0.05 - 0.1"))
+
+# Plot only significant species from LDM analysis
+toplot<-strains2 %>% filter(Species %in% data$Species)
+toplot$Taxonomy.Id = NULL
+
+colnames(toplot)<-gsub("_.*", "", colnames(toplot))
+colnames(toplot)<-gsub("X", "",  colnames(toplot))
+
+# Reshape data
+data_long <- pivot_longer(toplot, cols = -c(Species), names_to = "subject", values_to = "value")
+# add metadata back for groupings
+
+met$mouseID<-as.character(met$mouseID)
+colnames(data_long)[2] = "mouseID"
+df3 <- data_long %>% left_join(met, by = "mouseID") %>% select(mouseID, Sex, Species, value)
+
+# Calculate freqs & SE
+freqs <- df3 %>% group_by(Species, Sex) %>%
+  summarize(mean=mean(value), sd=sd(value))
+freqs$se = freqs$sd / sqrt(10)
+freqs<-left_join(freqs, data)
+freqs <- arrange(freqs, desc(mean.freq))
+freqs$sig<-ifelse(freqs$adj.pvalue < 0.001, "***", ifelse(freqs$adj.pvalue < 0.01, "**", (ifelse(freqs$adj.pvalue < 0.05, "*", "-"))))
+
+# Make plot
+p<-ggplot(freqs,  aes(x = reorder(Species, mean.freq), y     = mean, color = Sex)) + geom_point() + geom_errorbar(aes(ymin  = mean - se, ymax  = mean + se))  + coord_flip()  + scale_y_sqrt() + xlab("Species") + ylab("Mean Abundance") +   scale_colour_manual(values=c("red", "blue"))
+
+p + geom_text(aes(y = 0.23, x = freqs$Species), label = freqs$sig, color="black")
+
+ggsave("../results/SupFig2.pdf", width=12, height=8)
+```
+
+Generate underlying LDM for SF6 / Fem T vs Veh wk 4
+```{r}
+# Select proper samples and add group name
+met<- meta %>% filter(Time == "4") %>% filter(Sex=="Female")
+strains<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks Females only.csv")
+met$Group<-ifelse(met$trt == "Test", "T", "Veh")
+met$Group = factor(met$Group, levels = c("Veh", "T"))
+
+ strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:28, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:21]
+tax<-strains2$Species
+
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# fix order of cols
+column_order <- met$mouseID
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+
+# Check order
+identical(as.character(met$mouseID), colnames(bugs))
+
+# Strip NA before LDM
+bugs[is.na(bugs)] <- 0
+
+fit1<-ldm(formula=bugs ~ Group, data=met, dist.method = "bray", seed=12345)
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+
+#Make summary table for SEX
+w1 = match(fit1$detected.otu.omni[[1]], names(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[o],3),
+                       mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta>0, "+", "-"))[o],
+                       otu.name=names(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste("direction.", rownames(fit1$beta), sep="")
+
+# fix taxonomy
+tax_index<-data.frame(tax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Species"
+summary.tab2<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
+
+write.csv(summary.tab2, "../results/FemGAHT-Time4-associated-ldm.csv")
+```
+
+Generate SupFig 6 from LDM outputs while we still have proper strains2 and metadata file
+```{r}
+# Load LDM results for sex
+data<-read.csv("../results/FemGAHT-Time4-associated-ldm.csv")
+data <- arrange(data, desc(mean.freq))
+data$p.adj<-ifelse(data$adj.pvalue < 0.01, "<0.01", ifelse(data$adj.pvalue < 0.05, "<0.05", "0.05 - 0.1"))
+
+# Plot only significant species from LDM analysis
+toplot<-strains2 %>% filter(Species %in% data$Species)
+toplot$Taxonomy.Id = NULL
+
+colnames(toplot)<-gsub("_.*", "", colnames(toplot))
+colnames(toplot)<-gsub("X", "",  colnames(toplot))
+
+# Reshape data
+data_long <- pivot_longer(toplot, cols = -c(Species), names_to = "subject", values_to = "value")
+# add metadata back for groupings
+
+met$mouseID<-as.character(met$mouseID)
+colnames(data_long)[2] = "mouseID"
+df3 <- data_long %>% left_join(met, by = "mouseID") %>% select(mouseID, Group, Species, value)
+
+# Calculate freqs & SE
+freqs <- df3 %>% group_by(Species, Group) %>%
+  summarize(mean=mean(value), sd=sd(value))
+freqs$se = freqs$sd / sqrt(10)
+freqs<-left_join(freqs, data)
+freqs <- arrange(freqs, desc(mean.freq))
+freqs$sig<-ifelse(freqs$adj.pvalue < 0.001, "***", ifelse(freqs$adj.pvalue < 0.01, "**", (ifelse(freqs$adj.pvalue < 0.05, "*", "-"))))
+
+# Make plot
+p<-ggplot(freqs,  aes(x = reorder(Species, mean.freq), y     = mean, color = Group)) + geom_point() + geom_errorbar(aes(ymin  = mean - se, ymax  = mean + se))  + coord_flip()  + scale_y_sqrt() + xlab("Species") + ylab("Mean Abundance") +   scale_colour_manual(values=c("darkorange", "deeppink"))
+
+p + geom_text(aes(y = 0.23, x = freqs$Species), label = freqs$sig, color="black")
+
+ggsave("../results/SupFig6.pdf", width=12, height=8)
+```
+
+LDMs for male GAHT 4 wk
+```{r}
+met<- meta %>% filter(Time ==4) %>% filter(Sex == "Male")
+met$Group<-ifelse(met$trt == "Estrogen", "Orx.E2", ifelse(met$orch =="Yes", "Orx.Veh", "Sham.Veh"))
+met$Group = factor(met$Group, levels = c("Sham.Veh", "Orx.Veh", "Orx.E2"))
+# Update dropbox link
+strains<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks males only.csv")
+metacyc<-read.csv("../data/first_batch/Figure3/MetaCyc males 4 wks.csv")
+
+mtax<-metacyc$Name
+metacyc<-metacyc[2:30]
+colnames(metacyc)<-gsub("_.*", "", colnames(metacyc))
+colnames(metacyc)<-gsub("X", "",  colnames(metacyc))
+
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:37, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:30]
+tax<-strains2$Species
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# fix order of cols
+column_order <- met$mouseID
+metacyc <- metacyc[, order(match(colnames(metacyc), column_order))]
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+identical(colnames(metacyc), as.character(met$mouseID))
+
+bugs[is.na(bugs)] <- 0
+
+fit1<-ldm(formula=bugs ~ Group, data=met, dist.method = "bray", seed=12345)
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+
+
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+
+w1 = match(fit1$detected.otu.omni[[1]], names(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[o],3),
+                       mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta>0, "+", "-"))[o],
+                       otu.name=names(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste("direction.", rownames(fit1$beta), sep="")
+
+# fix taxonomy
+tax_index<-data.frame(tax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Species"
+summary.tab2<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
+
+write.csv(summary.tab2, "../results/Male4-Group-associated-ldm.csv")
+
+# Now do metacyc
+fit1<-ldm(formula=metacyc ~ Group, data=met, dist.method = "bray", seed=12345)
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+
+
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+
+w1 = match(fit1$detected.otu.omni[[1]], names(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[o],3),
+                       mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta>0, "+", "-"))[o],
+                       otu.name=names(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste("direction.", rownames(fit1$beta), sep="")
+
+# fix taxonomy
+tax_index<-data.frame(mtax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Taxonomy"
+summary.tab2<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
+
+write.csv(summary.tab2, "../results/Male4-Group-associated-pwy-ldm.csv")
+```
+
+Generate SupFig 4 from LDM outputs while we still have proper strains2 and metadata file
+```{r}
+# Load LDM results for sex
+data<-read.csv("../results/Male4-Group-associated-ldm.csv")
+data <- arrange(data, desc(mean.freq))
+data$p.adj<-ifelse(data$adj.pvalue < 0.01, "<0.01", ifelse(data$adj.pvalue < 0.05, "<0.05", "0.05 - 0.1"))
+
+# Plot only significant species from LDM analysis
+toplot<-strains2 %>% filter(Species %in% data$Species)
+toplot$Taxonomy.Id = NULL
+
+colnames(toplot)<-gsub("_.*", "", colnames(toplot))
+colnames(toplot)<-gsub("X", "",  colnames(toplot))
+
+# Reshape data
+data_long <- pivot_longer(toplot, cols = -c(Species), names_to = "subject", values_to = "value")
+# add metadata back for groupings
+
+met$mouseID<-as.character(met$mouseID)
+colnames(data_long)[2] = "mouseID"
+df3 <- data_long %>% left_join(met, by = "mouseID") %>% select(mouseID, Group, Species, value)
+
+# Calculate freqs & SE
+freqs <- df3 %>% group_by(Species, Group) %>%
+  summarize(mean=mean(value), sd=sd(value))
+freqs$se = freqs$sd / sqrt(10)
+freqs<-left_join(freqs, data)
+freqs <- arrange(freqs, desc(mean.freq))
+freqs$sig<-ifelse(freqs$adj.pvalue < 0.001, "***", ifelse(freqs$adj.pvalue < 0.01, "**", (ifelse(freqs$adj.pvalue < 0.05, "*", "-"))))
+
+# Make plot
+p<-ggplot(freqs,  aes(x = reorder(Species, mean.freq), y     = mean, color = Group)) + geom_point() + geom_errorbar(aes(ymin  = mean - se, ymax  = mean + se))  + coord_flip()  + scale_y_sqrt() + xlab("Species") + ylab("Mean Abundance") +   scale_colour_manual(values=c("forestgreen", "red", "blue"))
+
+p + geom_text(aes(y = 0.23, x = freqs$Species), label = freqs$sig, color="black")
+
+ggsave("../results/SupFig4.pdf", width=12, height=8)
+```
+
+Generate SupFig 5 from LDM outputs while we still have proper strains2 and metadata file
+```{r}
+# Load LDM results for sex
+data<-read.csv("../results/Male4-Group-associated-pwy-ldm.csv")
+data <- arrange(data, desc(mean.freq))
+data$p.adj<-ifelse(data$adj.pvalue < 0.01, "<0.01", ifelse(data$adj.pvalue < 0.05, "<0.05", "0.05 - 0.1"))
+data<-data %>% filter(adj.pvalue < 0.01)
+
+metacyc$Taxonomy = mtax
+# Plot only significant species from LDM analysis
+toplot<-metacyc %>% filter(Taxonomy %in% data$Taxonomy) 
+
+# Reshape data
+data_long <- pivot_longer(toplot, cols = -c(Taxonomy), names_to = "subject", values_to = "value")
+# add metadata back for groupings
+
+met$mouseID<-as.character(met$mouseID)
+colnames(data_long)[2] = "mouseID"
+df3 <- data_long %>% left_join(met, by = "mouseID") %>% select(mouseID, Group, Taxonomy, value)
+
+# Calculate freqs & SE
+freqs <- df3 %>% group_by(Taxonomy, Group) %>%
+  summarize(mean=mean(value), sd=sd(value))
+freqs$se = freqs$sd / sqrt(10)
+freqs<-left_join(freqs, data)
+freqs <- arrange(freqs, desc(mean.freq))
+freqs$sig<-ifelse(freqs$adj.pvalue < 0.001, "***", ifelse(freqs$adj.pvalue < 0.01, "**", (ifelse(freqs$adj.pvalue < 0.05, "*", "-"))))
+
+# Make plot
+p<-ggplot(freqs,  aes(x = reorder(Taxonomy, mean.freq), y     = mean, color = Group)) + geom_point() + geom_errorbar(aes(ymin  = mean - se, ymax  = mean + se))  + coord_flip()  + scale_y_sqrt() + xlab("Metacyc Pathway") + ylab("Mean Abundance") +   scale_colour_manual(values=c("forestgreen", "red", "blue"))
+
+p + geom_text(aes(y = 0.23, x = freqs$Taxonomy), label = freqs$sig, color="black")
+
+ggsave("../results/SupFig4.pdf", width=12, height=8)
+```
+
+
+

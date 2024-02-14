@@ -9,6 +9,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(LDM)
 library(cowplot)
 library(patchwork)
+library(dplyr)
+library(ggplot2)
+sessionInfo()
 ```
 
 Load metadata
@@ -71,24 +74,6 @@ tax_index$row_number = as.character(tax_index$row_number)
 colnames(tax_index)[2] = "Taxonomy"
 summary.tab<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
 
-# Make summary table for GROUP
-w1 = match(fit1$detected.otu.omni[[1]], colnames(fit1$q.otu.omni))
-o = w1[order(fit1$p.otu.omni[1, w1])]
-summary.tab2 = data.frame(raw.pvalue=signif(fit1$p.otu.omni[1,o],3),
-                       adj.pvalue=signif(fit1$q.otu.omni[1,o],3), mean.freq=signif(fit1$mean.freq[o],3),
-                       direction=t(ifelse(fit1$beta[1,]>0, "+", "-"))[o,],
-                       otu.name=colnames(fit1$q.otu.omni)[o], # can use taxonomy assignment
-                       row.names=NULL)
-colnames(summary.tab2)[4] = paste("direction.", rownames(fit1$beta[1,]), sep="")
-
-# fix taxonomy
-tax_index<-data.frame(tax)
-tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
-tax_index$row_number = as.character(tax_index$row_number)
-colnames(tax_index)[2] = "Taxonomy"
-summary.tab2<-left_join(summary.tab2, tax_index, by = c("otu.name"="row_number"))
-
-write.csv(summary.tab2, "../results/Male4-Group-associated-ldm.csv")
 write.csv(summary.tab, "../results/Male4-bone-associated-ldm.csv")
 
 ```

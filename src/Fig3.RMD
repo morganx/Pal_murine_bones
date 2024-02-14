@@ -12,9 +12,9 @@ library(ggpubr)
 library(vegan)
 library(ggordiplots)
 library(cowplot)
-theme_set(
-    theme_classic(base_size = 14)
-)
+library(patchwork)
+sessionInfo()
+
 ```
 
 Load  metadata

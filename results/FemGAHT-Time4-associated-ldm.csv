@@ -1,0 +1,8 @@
+"","raw.pvalue","adj.pvalue","mean.freq","direction.GroupT","otu.name","Species"
+"1",5.26e-05,0.00548,0.00136,"+","8","Akkermansia muciniphila"
+"2",0.00195,0.0712,0.0199,"+","77","Lactobacillales_u_s"
+"3",0.00232,0.0712,0.000432,"+","86","Ligilactobacillus animalis"
+"4",0.00274,0.0712,4.3e-05,"+","45","Clostridium cuniculi"
+"5",0.00426,0.0887,5.05e-05,"+","79","Lactobacillus intestinalis"
+"6",0.00537,0.0892,0.12,"+","87","Ligilactobacillus murinus"
+"7",0.006,0.0892,0.000139,"+","23","Bacteroides acidifaciens"
