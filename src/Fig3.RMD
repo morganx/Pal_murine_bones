@@ -234,7 +234,7 @@ legend<-plot_grid(legend1, legend2, legend3, nrow=1)
 # Assemble final plot
 final<-plot_grid(legend, plotThree, nrow = 2, rel_heights = c(.1, 1))
 
-ggsave("../results/FigureThree.pdf", height=8, width=12)
+ggsave("../results/FigureThree.pdf", height=10, width=16)
 
 
 ```

@@ -1,0 +1,183 @@
+---
+title: "Fig6"
+output: html_document
+date: "2024-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(LDM)
+library(cowplot)
+library(patchwork)
+```
+
+Load metadata
+```{r}
+meta<-read.csv("../data/first_batch/metadata.csv")
+```
+
+Run LDM on males at week 4
+```{r}
+# Select proper samples and add group name
+met<- meta %>% filter(Sex == "Male") %>% filter(Time == "4")
+met$Group<-ifelse(met$trt=="Veh" & met$orch=="Yes", "ORX.Veh", ifelse(met$trt=="Veh" & met$orch == "No", "Sham.Veh", "ORX.E2"))
+
+strains<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks males only.csv")
+
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:37, .fns = sum, na.rm = TRUE))
+
+# Take set for use
+bugs<-strains2[2:30]
+tax<-strains[1:9]
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# fix order of cols
+column_order <- met$mouseID
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+
+bugs[is.na(bugs)] <- 0
+
+fit1<-ldm(formula=bugs ~ Group + Fem.BV.TV, data=met, dist.method = "bray", seed=12345, test.mediation=TRUE)
+
+fit1$p.global.omni
+fit1$detected.otu.omni # The OTUs significantly associated with each covariate
+fit1$med.p.global.omni # Is there mediation?
+# which otus are mediators of outcome?
+fit1$med.detected.otu.omni
+fit1$p.otu.omni[,fit1$med.detected.otu.omni]
+
+# Make summary table for BONE
+w1 = match(fit1$detected.otu.omni[[2]], colnames(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[2, w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[2,o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[2,o],3), mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta[3,]>0, "+", "-"))[o,],
+                       otu.name=colnames(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste("direction.", rownames(fit1$beta[3,]), sep="")
+
+
+# fix taxonomy
+tax_index<-data.frame(tax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Taxonomy"
+summary.tab<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
+
+# Make summary table for GROUP
+w1 = match(fit1$detected.otu.omni[[1]], colnames(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[1, w1])]
+summary.tab2 = data.frame(raw.pvalue=signif(fit1$p.otu.omni[1,o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[1,o],3), mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta[1,]>0, "+", "-"))[o,],
+                       otu.name=colnames(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab2)[4] = paste("direction.", rownames(fit1$beta[1,]), sep="")
+
+# fix taxonomy
+tax_index<-data.frame(tax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Taxonomy"
+summary.tab2<-left_join(summary.tab2, tax_index, by = c("otu.name"="row_number"))
+
+write.csv(summary.tab2, "../results/Male4-Group-associated-ldm.csv")
+write.csv(summary.tab, "../results/Male4-bone-associated-ldm.csv")
+
+```
+
+Generate Figure 6
+```{r}
+toplot<-strains2 %>% filter(Species %in% summary.tab$Species)
+colnames(toplot)<-gsub("X", "",  colnames(toplot))
+colnames(toplot)<-gsub("_.*", "", colnames(toplot))
+
+melt<-reshape2::melt(toplot)
+colnames(melt)[2] = "mouseID"
+met$mouseID<-as.character(met$mouseID)
+melt<-left_join(melt, met, by=c("mouseID" = "mouseID"))
+
+melt$Group<-gsub("ORX.E2", "Orx.E2", melt$Group)
+melt$Group<-gsub("ORX.Veh", "Orx.Veh", melt$Group)
+melt$Group = factor(melt$Group, levels = c("Sham.Veh", "Orx.Veh", "Orx.E2"))
+
+# Make plots for B. acidifaciens
+
+a<-melt %>% filter(Species %in% c("Bacteroides acidifaciens")) %>% ggplot(aes(x=Group, y=value, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("a: Bacteroides acidifaciens") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+# Calculate regression on nonzero
+# Filter data for this example
+data <- melt %>% filter(Species == "Bacteroides acidifaciens", value > 0)
+
+# Perform linear regression
+model <- lm(value ~ Fem.BV.TV, data = data)
+
+# Summary of the model
+summary(model)
+
+b<-melt %>% filter(Species %in% c("Bacteroides acidifaciens")) %>% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.0028376, slope = 0.0005723, color = "black", linetype = "dashed") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("b: Bacteroides acidifaciens") + xlab("Femur BV/TV")
+
+# Save legend for later
+legend1 <- get_legend(
+b + 
+    guides(color = guide_legend(nrow = 1)) +
+     theme_set(theme_classic(base_size = 14)) + theme(legend.position = "bottom")
+)
+
+b<- b + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+c<-melt %>% filter(Species %in% c("Bacteroides caecimuri")) %>% ggplot(aes(x=Group, y=value, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("a: Bacteroides caecimuri") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+# Calculate regression on nonzero
+# Filter data for this example
+data <- melt %>% filter(Species == "Bacteroides caecimuri", value > 0)
+
+# Perform linear regression
+model <- lm(value ~ Fem.BV.TV, data = data)
+
+# Summary of the model
+summary(model)
+
+d<-melt %>% filter(Species %in% c("Bacteroides caecimuri")) %>% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.005206, slope = 6.148e-05, color = "black", linetype = "dashed") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("b: Bacteroides caecimuri") + xlab("Femur BV/TV") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+e<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes(x=Group, y=value, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("a: Limosilactobacillus reuteri") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+# Calculate regression on nonzero
+# Filter data for this example
+data <- melt %>% filter(Species == "Limosilactobacillus reuteri", value > 0)
+
+# Perform linear regression
+model <- lm(value ~ Fem.BV.TV, data = data)
+
+# Summary of the model
+summary(model)
+
+f<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.0437914 , slope = 0.0003011, color = "black", linetype = "dashed") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("b: Limosilactobacillus reuteri") + xlab("Femur BV/TV") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+g<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes(x=Group, y=Fem.BV.TV, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Femur BV/TV (%)") + ggtitle("c: Femur BV/TV") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
+
+
+# Assemble into plot
+
+layout <- '
+AB#
+CDG
+EF#
+'
+
+Fig6<-wrap_plots(A = a, B = b, C = c, D=d, E=e,F=f, G=g,  design = layout)
+final<-plot_grid(Fig6, legend1, nrow = 2, rel_heights = c(1, .1))
+
+ggsave("../results/FigureSix.pdf", height=14, width=14)
+ 
+
+
+
+```
