@@ -1,0 +1,251 @@
+---
+title: "SupFig1 and SupFig3"
+output: html_document
+date: "2024-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(vegan)
+library(ComplexHeatmap)
+library(circlize)
+library(viridis)
+```
+
+```{r}
+meta<-read.csv("../data/first_batch/metadata.csv")
+```
+
+Make Sup Fig 1
+```{r}
+strains<-read.csv("../data/first_batch/Figure3/Male_vs_female_baseline_STRAINS.csv")
+met<- meta %>% filter(Time ==1)
+
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:29, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:21]
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# Make sure column order matches metadata 
+column_order <- met$mouseID
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+
+# Squish into generic heatmap code
+baseline<-data.frame(met)
+rownames(baseline) = baseline$mouseID
+
+dat<-as.data.frame(bugs)
+rownames(dat) = strains2$Species
+meta_dat<-baseline
+# keep samples in present both files
+samples <- intersect(colnames(dat), row.names(meta_dat))
+dat <- dat[, samples]
+meta_dat <- meta_dat[samples, ]
+
+# subset metadata to what we are plotting
+meta_dat <- meta_dat[c("Sex")]
+
+# prep for heatmap ----
+# sort data if desired
+#   heatmap will be incorrect if ordering prior to clustering is not the same
+ordering <- order(meta_dat$Sex)
+meta_dat <- meta_dat[ordering, ]
+dat <- dat[, ordering]
+
+num_top <- 30  # number of taxa to show by decreasing mean relative abundance
+top_names <- names(sort(rowMeans(dat), decreasing=TRUE))[1:num_top]
+top_features <- dat[match(top_names, row.names(dat)), ]
+
+# log transform for better plotting dynamic range
+#   pseudocount is minimum of all the features, not per feature (as in maaslin defaults)
+top_features <- log10(top_features + min(dat[dat > 0])/2)
+
+# assign colors to metadata
+color_map <- list(Sex = c(Male = "#0000FF", Female = "#FF0000")) 
+
+# make sample annotations (names, colors)
+#   name and show annotation name not necessary since metadata is named, but could be edited later to give better names
+sample_anno <- HeatmapAnnotation(Sex = meta_dat,
+                                 col = color_map,
+                                 gap = unit(0.2, "mm"),
+                                 show_annotation_name = TRUE) 
+
+# calibrate heatmap colors
+#   there's probably a good way to automate this, but by hand is fine for now
+quantile(unlist(top_features))  # check the range of abundances
+heatmap_breaks <- c(-6, -5, -4, -3, -2, -1)  # ends up being 10 ^ x on scale
+heatmap_colors <- magma(length(heatmap_breaks))
+
+# cluster samples via UPGMA if desired
+D <- vegdist(t(dat), method = "bray")
+sample_clust <- hclust(D, "average")
+
+# create heatmap ----
+heatmap <- Heatmap(
+  as.matrix(top_features),
+
+  column_title = "Samples",
+  column_title_side = "bottom",
+  show_column_names = FALSE,
+  cluster_columns = sample_clust,  # or 'sample_clust' to cluster samples
+  show_column_dend = TRUE,
+  column_labels = row.names(meta_dat),
+  column_names_side = "bottom",
+  column_names_gp = gpar(fontsize = 8),
+  
+  row_title = paste("Top", num_top, "Species"),
+  row_title_side = "left",
+  show_row_names = TRUE,
+  row_names_side = "right",
+  cluster_rows = TRUE,
+  clustering_distance_rows = "euclidean",
+  show_row_dend = TRUE,
+  row_names_gp = gpar(fontsize = 8),
+                   
+  heatmap_legend_param = list(at = heatmap_breaks,
+                              labels = sapply(paste0("10^", heatmap_breaks), function(x) bquote(.(x))), 
+                              color_bar = "continuous",
+                              legend_direction = "horizontal",
+                              labels_gp = gpar(fontsize = 8),
+                              legend_width = unit(6, "cm"),
+                              title_position = "topcenter",
+                              title = "log10 Relative Abundance"),
+  col = colorRamp2(heatmap_breaks, 
+                   heatmap_colors),
+  top_annotation = sample_anno,
+  
+  width = unit(10, "cm"), 
+  rect_gp = gpar(color = "grey", lwd = 0.05)
+)
+
+pdf("../results/SupFig1.pdf",width=10,height=8)
+# plot heatmap ----
+draw(heatmap, heatmap_legend_side = "bottom", annotation_legend_side = "right")
+dev.off()
+```
+
+Make Sup Fig 3
+```{r}
+strains<-read.csv("../data/first_batch/Figure3/Strains GAHT 4 wks males only.csv")
+met<- meta %>% filter(Time ==4) %>% filter(Sex == "Male")
+met$Group<-ifelse(met$trt == "Estrogen", "Orx.E2", ifelse(met$orch =="Yes", "Orx.Veh", "Sham.Veh"))
+ met$Group = factor(met$Group, levels = c("Sham.Veh", "Orx.Veh", "Orx.E2"))
+ 
+# Sum strains within species
+strains2 <- strains %>%
+  group_by(Species) %>%
+  summarise(across(.cols = 9:37, .fns = sum, na.rm = TRUE))
+
+# Take set for graphing
+bugs<-strains2[2:30]
+
+# Fix colnames
+colnames(bugs)<-gsub("_.*", "", colnames(bugs))
+colnames(bugs)<-gsub("X", "",  colnames(bugs))
+
+# Make sure column order matches metadata 
+column_order <- met$mouseID
+bugs <- bugs[, order(match(colnames(bugs), column_order))]
+identical(colnames(bugs), as.character(met$mouseID))
+
+# Squish into generic heatmap code
+baseline<-data.frame(met)
+rownames(baseline) = baseline$mouseID
+
+dat<-as.data.frame(bugs)
+rownames(dat) = strains2$Species
+meta_dat<-baseline
+# keep samples in present both files
+samples <- intersect(colnames(dat), row.names(meta_dat))
+dat <- dat[, samples]
+meta_dat <- meta_dat[samples, ]
+
+# subset metadata to what we are plotting
+meta_dat <- meta_dat[c("Group")]
+
+# prep for heatmap ----
+# sort data if desired
+#   heatmap will be incorrect if ordering prior to clustering is not the same
+ordering <- order(meta_dat$Group)
+meta_dat <- meta_dat[ordering, ]
+dat <- dat[, ordering]
+
+num_top <- 30  # number of taxa to show by decreasing mean relative abundance
+top_names <- names(sort(rowMeans(dat), decreasing=TRUE))[1:num_top]
+top_features <- dat[match(top_names, row.names(dat)), ]
+
+# log transform for better plotting dynamic range
+#   pseudocount is minimum of all the features, not per feature (as in maaslin defaults)
+top_features <- log10(top_features + min(dat[dat > 0])/2)
+
+# assign colors to metadata
+color_map <- list(Group = c("Sham.Veh" = "darkgreen", "Orx.Veh" = "red", "Orx.E2" ="blue")) 
+# make sample annotations (names, colors)
+#   name and show annotation name not necessary since metadata is named, but could be edited later to give better names
+sample_anno <- HeatmapAnnotation(Group = meta_dat,
+                                 col = color_map,
+                                 gap = unit(0.2, "mm"),
+                                 show_annotation_name = TRUE) 
+
+# calibrate heatmap colors
+#   there's probably a good way to automate this, but by hand is fine for now
+quantile(unlist(top_features))  # check the range of abundances
+heatmap_breaks <- c(-6, -5, -4, -3, -2, -1)  # ends up being 10 ^ x on scale
+heatmap_colors <- magma(length(heatmap_breaks))
+
+# cluster samples via UPGMA if desired
+D <- vegdist(t(dat), method = "bray")
+sample_clust <- hclust(D, "average")
+
+# create heatmap ----
+heatmap <- Heatmap(
+  as.matrix(top_features),
+
+  column_title = "Samples",
+  column_title_side = "bottom",
+  show_column_names = FALSE,
+  cluster_columns = sample_clust,  # or 'sample_clust' to cluster samples
+  show_column_dend = TRUE,
+  column_labels = row.names(meta_dat),
+  column_names_side = "bottom",
+  column_names_gp = gpar(fontsize = 8),
+  
+  row_title = paste("Top", num_top, "Species"),
+  row_title_side = "left",
+  show_row_names = TRUE,
+  row_names_side = "right",
+  cluster_rows = TRUE,
+  clustering_distance_rows = "euclidean",
+  show_row_dend = TRUE,
+  row_names_gp = gpar(fontsize = 8),
+                   
+  heatmap_legend_param = list(at = heatmap_breaks,
+                              labels = sapply(paste0("10^", heatmap_breaks), function(x) bquote(.(x))), 
+                              color_bar = "continuous",
+                              legend_direction = "horizontal",
+                              labels_gp = gpar(fontsize = 8),
+                              legend_width = unit(6, "cm"),
+                              title_position = "topcenter",
+                              title = "log10 Relative Abundance"),
+  col = colorRamp2(heatmap_breaks, 
+                   heatmap_colors),
+  top_annotation = sample_anno,
+  
+  width = unit(10, "cm"), 
+  rect_gp = gpar(color = "grey", lwd = 0.05)
+)
+
+pdf("../results/SupFig3.pdf",width=10,height=8)
+# plot heatmap ----
+draw(heatmap, heatmap_legend_side = "bottom", annotation_legend_side = "right")
+dev.off()
+```
