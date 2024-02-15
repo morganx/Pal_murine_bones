@@ -137,7 +137,7 @@ identical(as.character(met$mouseID), colnames(bugs))
 # Strip NA before LDM
 bugs[is.na(bugs)] <- 0
 
-fit1<-ldm(formula=bugs ~ Group, data=met, dist.method = "bray", seed=12345)
+fit1<-ldm(formula=bugs ~ Group, data=met, dist.method = "bray", seed=1)
 fit1$p.global.omni
 fit1$detected.otu.omni # The OTUs significantly associated with each covariate
 
@@ -159,7 +159,7 @@ tax_index$row_number = as.character(tax_index$row_number)
 colnames(tax_index)[2] = "Species"
 summary.tab2<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
 
-write.csv(summary.tab2, "../results/FemGAHT-Time4-associated-ldm.csv")
+#write.csv(summary.tab2, "../results/FemGAHT-Time4-associated-ldm.csv")
 ```
 
 Generate SupFig 6 from LDM outputs while we still have proper strains2 and metadata file
@@ -327,7 +327,7 @@ p<-ggplot(freqs,  aes(x = reorder(Species, mean.freq), y     = mean, color = Gro
 
 p + geom_text(aes(y = 0.23, x = freqs$Species), label = freqs$sig, color="black")
 
-ggsave("../results/SupFig4.pdf", width=12, height=8)
+ggsave("../results/SupFig5.pdf", width=12, height=8)
 ```
 
 Generate SupFig 5 from LDM outputs while we still have proper strains2 and metadata file
