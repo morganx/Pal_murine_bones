@@ -464,7 +464,25 @@ tax_index$row_number = as.character(tax_index$row_number)
 colnames(tax_index)[2] = &quot;Taxonomy&quot;
 summary.tab&lt;-left_join(summary.tab, tax_index, by = c(&quot;otu.name&quot;=&quot;row_number&quot;))
 
-write.csv(summary.tab, &quot;../results/Male4-bone-associated-ldm.csv&quot;)</code></pre>
+write.csv(summary.tab, &quot;../results/Male4-bone-associated-ldm.csv&quot;)
+
+# Make summary table for GROUP - use this to get pvals for figure 6 top half
+w1 = match(fit1$detected.otu.omni[[1]], colnames(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[1, w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[1,o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[1,o],3), mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta[1,]&gt;0, &quot;+&quot;, &quot;-&quot;))[o,],
+                       otu.name=colnames(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste(&quot;direction.&quot;, rownames(fit1$beta[1,]), sep=&quot;&quot;)
+
+
+# fix taxonomy
+tax_index&lt;-data.frame(tax)
+tax_index&lt;- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = &quot;Taxonomy&quot;
+summary.tab&lt;-left_join(summary.tab, tax_index, by = c(&quot;otu.name&quot;=&quot;row_number&quot;))</code></pre>
 <p>Generate Figure 6</p>
 <pre class="r"><code>toplot&lt;-strains2 %&gt;% filter(Species %in% summary.tab$Species)
 colnames(toplot)&lt;-gsub(&quot;X&quot;, &quot;&quot;,  colnames(toplot))
@@ -549,37 +567,6 @@ summary(model)</code></pre>
 ## F-statistic: 0.05981 on 1 and 3 DF,  p-value: 0.8226</code></pre>
 <pre class="r"><code>d&lt;-melt %&gt;% filter(Species %in% c(&quot;Bacteroides caecimuri&quot;)) %&gt;% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.005206, slope = 6.148e-05, color = &quot;black&quot;, linetype = &quot;dashed&quot;) + scale_colour_manual(values=c(&quot;forestgreen&quot;, &quot;red&quot;, &quot;blue&quot;)) + theme_minimal() + ylab(&quot;Relative abundance&quot;) + ggtitle(&quot;b: Bacteroides caecimuri&quot;) + xlab(&quot;Femur BV/TV&quot;) + theme_set(theme_classic(base_size = 14)) + theme(legend.position=&quot;none&quot;)
 
-e&lt;-melt %&gt;% filter(Species %in% c(&quot;Limosilactobacillus reuteri&quot;)) %&gt;% ggplot(aes(x=Group, y=value, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c(&quot;forestgreen&quot;, &quot;red&quot;, &quot;blue&quot;)) + theme_minimal() + ylab(&quot;Relative abundance&quot;) + ggtitle(&quot;a: Limosilactobacillus reuteri&quot;) + theme_set(theme_classic(base_size = 14)) + theme(legend.position=&quot;none&quot;)
-
-# Calculate regression on nonzero
-# Filter data for this example
-data &lt;- melt %&gt;% filter(Species == &quot;Limosilactobacillus reuteri&quot;, value &gt; 0)
-
-# Perform linear regression
-model &lt;- lm(value ~ Fem.BV.TV, data = data)
-
-# Summary of the model
-summary(model)</code></pre>
-<pre><code>## 
-## Call:
-## lm(formula = value ~ Fem.BV.TV, data = data)
-## 
-## Residuals:
-##       Min        1Q    Median        3Q       Max 
-## -0.047371 -0.010219  0.003814  0.012929  0.048039 
-## 
-## Coefficients:
-##              Estimate Std. Error t value Pr(&gt;|t|)    
-## (Intercept) 0.0437914  0.0075211   5.822 5.28e-06 ***
-## Fem.BV.TV   0.0003011  0.0002688   1.120    0.274    
-## ---
-## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
-## 
-## Residual standard error: 0.0234 on 24 degrees of freedom
-## Multiple R-squared:  0.04967,    Adjusted R-squared:  0.01007 
-## F-statistic: 1.254 on 1 and 24 DF,  p-value: 0.2738</code></pre>
-<pre class="r"><code>f&lt;-melt %&gt;% filter(Species %in% c(&quot;Limosilactobacillus reuteri&quot;)) %&gt;% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.0437914 , slope = 0.0003011, color = &quot;black&quot;, linetype = &quot;dashed&quot;) + scale_colour_manual(values=c(&quot;forestgreen&quot;, &quot;red&quot;, &quot;blue&quot;)) + theme_minimal() + ylab(&quot;Relative abundance&quot;) + ggtitle(&quot;b: Limosilactobacillus reuteri&quot;) + xlab(&quot;Femur BV/TV&quot;) + theme_set(theme_classic(base_size = 14)) + theme(legend.position=&quot;none&quot;)
-
 g&lt;-melt %&gt;% filter(Species %in% c(&quot;Limosilactobacillus reuteri&quot;)) %&gt;% ggplot(aes(x=Group, y=Fem.BV.TV, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c(&quot;forestgreen&quot;, &quot;red&quot;, &quot;blue&quot;)) + theme_minimal() + ylab(&quot;Femur BV/TV (%)&quot;) + ggtitle(&quot;c: Femur BV/TV&quot;) + theme_set(theme_classic(base_size = 14)) + theme(legend.position=&quot;none&quot;)
 
 
@@ -588,11 +575,12 @@ g&lt;-melt %&gt;% filter(Species %in% c(&quot;Limosilactobacillus reuteri&quot;)
 layout &lt;- &#39;
 AB#
 CDG
-EF#
 &#39;
 
-Fig6&lt;-wrap_plots(A = a, B = b, C = c, D=d, E=e,F=f, G=g,  design = layout)
+#Fig6&lt;-wrap_plots(A = a, B = b, C = c, D=d, E=e,F=f, G=g,  design = layout)
+Fig6&lt;-wrap_plots(A = a, B = b, C = c, D=d, G=g,  design = layout)
 final&lt;-plot_grid(Fig6, legend1, nrow = 2, rel_heights = c(1, .1))
+
 
 ggsave(&quot;../results/FigureSix.pdf&quot;, height=14, width=14)</code></pre>
 <pre class="r"><code>sessionInfo()</code></pre>

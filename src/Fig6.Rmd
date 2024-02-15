@@ -75,6 +75,25 @@ summary.tab<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
 
 write.csv(summary.tab, "../results/Male4-bone-associated-ldm.csv")
 
+# Make summary table for GROUP - use this to get pvals for figure 6 top half
+w1 = match(fit1$detected.otu.omni[[1]], colnames(fit1$q.otu.omni))
+o = w1[order(fit1$p.otu.omni[1, w1])]
+summary.tab = data.frame(raw.pvalue=signif(fit1$p.otu.omni[1,o],3),
+                       adj.pvalue=signif(fit1$q.otu.omni[1,o],3), mean.freq=signif(fit1$mean.freq[o],3),
+                       direction=t(ifelse(fit1$beta[1,]>0, "+", "-"))[o,],
+                       otu.name=colnames(fit1$q.otu.omni)[o], # can use taxonomy assignment
+                       row.names=NULL)
+colnames(summary.tab)[4] = paste("direction.", rownames(fit1$beta[1,]), sep="")
+
+
+# fix taxonomy
+tax_index<-data.frame(tax)
+tax_index<- cbind(row_number = 1:nrow(tax_index), tax_index)
+tax_index$row_number = as.character(tax_index$row_number)
+colnames(tax_index)[2] = "Taxonomy"
+summary.tab<-left_join(summary.tab, tax_index, by = c("otu.name"="row_number"))
+
+
 ```
 
 Generate Figure 6
@@ -131,20 +150,6 @@ summary(model)
 
 d<-melt %>% filter(Species %in% c("Bacteroides caecimuri")) %>% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.005206, slope = 6.148e-05, color = "black", linetype = "dashed") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("b: Bacteroides caecimuri") + xlab("Femur BV/TV") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
 
-e<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes(x=Group, y=value, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("a: Limosilactobacillus reuteri") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
-
-# Calculate regression on nonzero
-# Filter data for this example
-data <- melt %>% filter(Species == "Limosilactobacillus reuteri", value > 0)
-
-# Perform linear regression
-model <- lm(value ~ Fem.BV.TV, data = data)
-
-# Summary of the model
-summary(model)
-
-f<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes(x=Fem.BV.TV, y=value, colour=Group))  + geom_point() + geom_abline(intercept = 0.0437914 , slope = 0.0003011, color = "black", linetype = "dashed") + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Relative abundance") + ggtitle("b: Limosilactobacillus reuteri") + xlab("Femur BV/TV") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
-
 g<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes(x=Group, y=Fem.BV.TV, colour=Group)) + geom_boxplot() + geom_point() + scale_colour_manual(values=c("forestgreen", "red", "blue")) + theme_minimal() + ylab("Femur BV/TV (%)") + ggtitle("c: Femur BV/TV") + theme_set(theme_classic(base_size = 14)) + theme(legend.position="none")
 
 
@@ -153,11 +158,12 @@ g<-melt %>% filter(Species %in% c("Limosilactobacillus reuteri")) %>% ggplot(aes
 layout <- '
 AB#
 CDG
-EF#
 '
 
-Fig6<-wrap_plots(A = a, B = b, C = c, D=d, E=e,F=f, G=g,  design = layout)
+#Fig6<-wrap_plots(A = a, B = b, C = c, D=d, E=e,F=f, G=g,  design = layout)
+Fig6<-wrap_plots(A = a, B = b, C = c, D=d, G=g,  design = layout)
 final<-plot_grid(Fig6, legend1, nrow = 2, rel_heights = c(1, .1))
+
 
 ggsave("../results/FigureSix.pdf", height=14, width=14)
 ```
