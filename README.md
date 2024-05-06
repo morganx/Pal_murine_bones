@@ -1,6 +1,6 @@
 # README
 
-This is the repository for Subhashis Pal, Hamid Y. Dar, Andreea Stoica, Yi-Juan Hu, Xochitl Morgan, M. Neale Weitzmann, Rheinallt M. Jones, and Roberto Pacifici*, "Gender-affirming hormone therapy does not impair skeletal maturation in young mice and regulates bone via the gut microbiome." Currently in revision.
+This is the repository for Subhashis Pal, Hamid Y. Dar, Andreea Stoica, Yi-Juan Hu, Xochitl Morgan, M. Neale Weitzmann, Rheinallt M. Jones, and Roberto Pacifici*, "Gender-affirming hormone therapy does not impair skeletal maturation in young mice and regulates bone via the gut microbiome." (PMID: 38530358), published in the Journal of Clinical Investigation. 
 
 Sequencing data is deposited at SRA: PRJNA1071073
 
